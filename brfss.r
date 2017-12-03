@@ -2,6 +2,32 @@
 rm(list=ls(all=TRUE))
 
 # Load the tidyverse
+install.packages('tidyverse')
+install.packages('stringr')
+
+# Load e1071 for the SVM (Support Vector Machine') functions
+install.packages('e1071')
+
+# Load the library nnet, which will allow us to run multinom, which is a form of logistic regression different than glm.
+install.packages('nnet')
+
+# Load cwhmisc and two dependencies.
+install.packages('cwhmisc')
+install.packages('lattice')
+install.packages('grid')
+install.packages('rpart')
+
+# Librarys for confustion matrix for confirming svm and lr models
+install.packages('caret')
+install.packages('heuristica')
+
+# For plotting decision trees
+install.packages('rpart.plot')
+
+# This is for testing the accuracy of our logistic regression
+install.packages('pscl')
+
+# Load the tidyverse
 library(tidyverse)
 library(stringr)
 
@@ -31,9 +57,11 @@ Y2015 <- read_csv("data/2015.csv", col_names= TRUE)
 View(Y2015)
 
 # Create a subset of the data that only contains data that only contains computed variables by finding columns with underscores at the start https://www.cdc.gov/brfss/annual_data/2015/pdf/codebook15_llcp.pdf
-
 data <- Y2015 %>%
   select(starts_with("_"))
+
+data <- Y2015 %>%
+  select(starts_with("_"), ends_with("_"))
 
 # Then rename the columns to get rid of the stupid underscores that are screwing stuff up and make them lowercase.
 names(data) <- names(data) %>%
@@ -52,11 +80,6 @@ binge$rfbing5[binge$rfbing5 == 1] <- 5
 binge$rfbing5[binge$rfbing5 == 2] <- 1
 binge$rfbing5[binge$rfbing5 == 5] <- 0
 
-# Convert the binge to characters, may solve the problems
-mutate_at(binge, vars( -Species), funs(log(.)))
-mutate_at(binge, vars(rfbing5), funs(as.character())) 
-
-
 # Create a table to count NAs by column to get a nice list of most problematic columns, which helped me figure out what to take out in the columns above. Don't actually need to run this again, but here in case I need it again.
 na_count <-sapply(binge, function(y) sum(length(which(is.na(y)))))
 na_count <- data.frame(na_count)
@@ -68,19 +91,6 @@ index <- 1:nrow(binge)
 testindex <- sample(index, trunc(length(index)/5))
 testset <- binge[testindex,]
 trainset <- binge[-testindex,]
-
-
-# Now let's split our data into a test set and train set
-# Set random seed. Don't remove this line.
-#set.seed(1)
-
-# Shuffle the dataset, call the result shuffled
-#n <- nrow(binge)
-#shuffled <- binge[sample(n),]
-
-# Split the data in train and test
-#train <- shuffled[1:round(0.7 * n),]
-#test <- shuffled[(round(0.7 * n) + 1):n,]
 
 # Define my evaluation functions
 record_performance <- function( model_type, df, name, model, test) {
@@ -101,37 +111,42 @@ record_performance <- function( model_type, df, name, model, test) {
   return(df)
 }
 
-
 # Get the most frequent baseline, which divides number of false answers by number of total observations to use as a base measurement. This is how well humans did on guessing answers to questions. We need to do better than this with our predictive model. So any model we build needs to do a better job than the humans at getting the right answer.
-lr.mfc_baseline <- sum(trainset$rfbing5 == 0) / nrow(trainset)
-lr.results <- data.frame(model=c("MFC"), score=c(lr.mfc_baseline))
+models.mfc_baseline <- sum(trainset$rfbing5 == 0) / nrow(trainset)
+models.results <- data.frame(model=c("MFC"), score=c(models.mfc_baseline))
 
-# Now let's add single variable logsitic regression models to the list.
-lr.results <- record_performance("logit", lr.results, "frutsum", multinom(rfbing5 ~ frutsum, data=trainset),testset)
-lr.results <- record_performance("logit", lr.results, "smoker3", multinom(rfbing5 ~ smoker3, data=trainset),testset)
+# First let's check for statistical signficance, and only consider those variables
+test_glm<-glm(rfbing5 ~ ., data=trainset)
+print(summary(test_glm))
 
-lr.results <- record_performance("logit", lr.results, "smoker3", multinom(rfbing5 ~ . , data=trainset),testset)
+# These are statistically - rfhype5, raceg21,age80, ageg, rfbmi5,smoker3,rfsmok3,drnkwek,rfdrhv5,vegesum, frtlt1, veglt1,rfseat3
 
-lr.results <- record_performance("logit", lr.results, "nodrnkwk", multinom(rfbing5 ~ .-drnkwek , data=trainset),testset)
+# Now let's create a logistic regression model in which we add all variables except for other drinking
+models.results <- record_performance("logit", models.results, "all", multinom(rfbing5 ~ ., data=trainset),testset)
 
-lr.results <- record_performance("logit", lr.results, "veg23", multinom(rfbing5 ~ veg23, data=train),test)
-lr.results <- record_performance("logit", lr.results, "drnkwek", multinom(rfbing5 ~ drnkwek, data=train),test)
-lr.results <- record_performance("logit", lr.results, "age80", multinom(rfbing5 ~ age80, data=train),test)
-lr.results <- record_performance("logit", lr.results, "pacat1", multinom(rfbing5 ~ pacat1, data=train),test)
+# Now let's create a logistic regression model in which we add all variables except for other drinking
+models.results <- record_performance("logit", models.results, "all no drnkwek", multinom(rfbing5 ~ . -drnkwek, data=trainset),testset)
+
+# Now let's create a logistic regression model in which we add all variables except for other drinking
+models.results <- record_performance("logit", models.results, "all no rfdrhv5", multinom(rfbing5 ~ . -rfdrhv5, data=trainset),testset)
+
+# Now let's create a logistic regression model in which we add all variables except for other drinking
+models.results <- record_performance("logit", models.results, "all no drnkwek or rfdrhv5", multinom(rfbing5 ~ . -drnkwek -rfdrhv5 , data=trainset),testset)
+
+# All alex sig
+models.results <- record_performance("logit", models.results, "all alex sig", multinom(rfbing5 ~ hcvu651+raceg21+age80+rfbmi5+smoker3+rfsmok3+drnkwek+rfdrhv5+frtlt1+pa300r2+lmtact1+rfseat3, data=trainset),testset)
+
+# All my sig
+models.results <- record_performance("logit", models.results, "all my sig", multinom(rfbing5 ~ rfhype5+raceg21+age80+ageg+rfbmi5+smoker3+rfsmok3+drnkwek+rfdrhv5+vegesum+frtlt1+veglt1+rfseat3, data=trainset),testset)
 
 
-tree.mfc_baseline <- sum(test$rfbing5 == 1) / nrow(test)
-tree.results <- data.frame(model=c("MFC"), score=c(tree.mfc_baseline))
+full$scale_score <- scale(full$body_score)
+log 
 
-# Now let's add single variable logsitic regression models to the list. 
-tree.results <- record_performance("tree", tree.results, "body_score", rpart(rfbing5 ~ age80, data=train,method="class"),test)
+rfbmi (engineer)
+frutsum and vegetable sum we can egnineer
 
 
-svm.mfc_baseline <- sum(testset$rfbing5 == 0) / nrow(testset)
-svm.results <- data.frame(model=c("MFC"), score=c(svm.mfc_baseline))
-
-# Now let's add single variable logsitic regression models to the list. 
-svm.results <- record_performance("svm", svm.results, "body_score", svm(rfbing5 ~ age80, data=trainset),testset)
 
 
 # EXPLORATORY ANALYSIS - RASHMI FIGURING OUT
