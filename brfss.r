@@ -56,9 +56,7 @@ library(pscl)
 Y2015 <- read_csv("data/2015.csv", col_names= TRUE)
 View(Y2015)
 
-# Create a subset of the data that only contains data that only contains computed variables by finding columns with underscores at the start https://www.cdc.gov/brfss/annual_data/2015/pdf/codebook15_llcp.pdf
-data <- Y2015 %>%
-  select(starts_with("_"))
+# Create a subset of the data that only contains data that only contains computed variables by finding columns with underscores at the start https://www.cdc.gov/brfss/annual_data/2015/pdf/codebook15_llcp.pdf.  NOTE: Updated this to include calculated variables that end with underscores, too. 
 
 data <- Y2015 %>%
   select(starts_with("_"), ends_with("_"))
@@ -139,6 +137,8 @@ models.results <- record_performance("logit", models.results, "all alex sig", mu
 # All my sig
 models.results <- record_performance("logit", models.results, "all my sig", multinom(rfbing5 ~ rfhype5+raceg21+age80+ageg+rfbmi5+smoker3+rfsmok3+drnkwek+rfdrhv5+vegesum+frtlt1+veglt1+rfseat3, data=trainset),testset)
 
+# All my sig
+models.results <- record_performance("logit", models.results, "drocdy", multinom(rfbing5 ~ drocdy3, data=trainset),testset)
 
 full$scale_score <- scale(full$body_score)
 log 
@@ -146,7 +146,7 @@ log
 rfbmi (engineer)
 frutsum and vegetable sum we can egnineer
 
-
+drocdy3
 
 
 # EXPLORATORY ANALYSIS - RASHMI FIGURING OUT
