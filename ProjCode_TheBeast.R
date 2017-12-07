@@ -118,6 +118,9 @@ binge$log2frutsum<-log2(binge$vegesum)
 #do you even food pyramid bro
 binge$highVeg<- (binge$log2frutsum * binge$log2frutsum)
 
+#mixed drinks
+binge$mixedDrinks <- scale(binge$drnkwek*binge$rfdrhv5)
+
 # Take the log to normalize all of our census variables
 binge$log2unemployment <- log2(binge$unemployment)
 binge$log2less_10K <- log2(binge$less_10K)
@@ -174,9 +177,6 @@ print(summary(test_glm))
 test_glm <-glm(rfbing5 ~ rfhype5 + asthms1 +  ageg + rfbmi5 + educag + smoker3 + rfsmok3 + drnkwek + rfdrhv5 + frutsum + frtlt1 + veg23 + minac11 + pastrng + rfseat2 + rfseat3 + drocdy3 + ftjuda1 + padur1 + padur2 + foodstamp, data=trainset)
 print(summary(test_glm))
 
-
-# These are interesting variables rfhype5, raceg21,age80, ageg, rfbmi5,smoker3,rfsmok3,drnkwek,rfdrhv5,vegesum, frtlt1, veglt1,rfseat3 ageg + educag + smoker3 + rfsmok3 + drnkwek + rfdrhv5 + vegesum + frtlt1 + rfseat3 + drocdy3 + frutda1 +padur1
-
 # Get the most frequent baseline, tells us how many people are not binge drinkers. Any model we build needs to do better than this baseline.
 models.mfc_baseline <- sum(trainset$rfbing5 == 0) / nrow(trainset)
 models.results <- data.frame(model=c("MFC"), score=c(models.mfc_baseline))
@@ -197,76 +197,47 @@ models.results <- record_performance("logit", models.results, "all no drnkwek or
 models.results <- record_performance("logit", models.results, "all sig variables", multinom(rfbing5 ~ rfhype5 + asthms1 +  ageg + rfbmi5 + educag + smoker3 + rfsmok3 + drnkwek + rfdrhv5 + frutsum + frtlt1 + veg23 + minac11 + pastrng + rfseat2 + rfseat3 + drocdy3 + ftjuda1 + padur1 + padur2 + foodstamp, data=trainset),testset)
 
 # Here is all of our significant variables in earlier glm except drnkwek and rfdrhv5
+# THIS IS OUR BEST MODEL
 models.results <- record_performance("logit", models.results, "all sig variables except drinking", multinom(rfbing5 ~ rfhype5 + asthms1 +  ageg + rfbmi5 + educag + smoker3 + rfsmok3 + frutsum + frtlt1 + veg23 + minac11 + pastrng + rfseat2 + rfseat3 + drocdy3 + ftjuda1 + padur1 + padur2 + foodstamp, data=trainset),testset)
 
-# Here are all the variables Sean identified as signficant
-models.results <- record_performance("logit", models.results, "all my sig", multinom(rfbing5 ~ rfbing5 ~ ageg + educag + smoker3 + rfsmok3 + drnkwek + rfdrhv5 + vegesum + frtlt1 + rfseat3 + drocdy3 + frutda1 + padur1, data=trainset),testset)
-
-# Get the most frequent baseline, which divides number of false answers by number of total observations to use as a base measurement. This is how well humans did on guessing answers to questions. We need to do better than this with our predictive model. So any model we build needs to do a better job than the humans at getting the right answer.
-models.mfc_baseline <- sum(trainset$rfbing5 == 0) / nrow(trainset)
-models.results <- data.frame(model=c("MFC"), score=c(models.mfc_baseline))
-
-# Now let's create a logistic regression model in which we add all variables
-models.results <- record_performance("logit", models.results, "logit-all", multinom(rfbing5 ~ . , data=trainset),testset)
-
+#### Now let's test SVM Models
 # Now let's create a svm regression model in which we add all variables
-models.results <- record_performance("svm", models.results, "svm-smoker", svm(rfbing5 ~ smoker3 , data=trainset),testset)
+# Set the baseline
+svmmodels.mfc_baseline <- sum(trainset$rfbing5 == 0) / nrow(trainset)
+svmmodels.results <- data.frame(model=c("MFC"), score=c(svmmodels.mfc_baseline))
 
-# Now let's create a tree regression model in which we add all variables
-models.results <- record_performance("tree", models.results, "tree-smoker", rpart(rfbing5 ~ smoker3 , data=trainset, method="class"),testset)
-
-# Now let's create a tree regression model in which we add all variables
-models.results <- record_performance("tree", models.results, "tree-all", rpart(rfbing5 ~ . , data=trainset, method="class"),testset)
-
-# Now let's create a tree regression model in which we add all variables
-models.results <- record_performance("tree", models.results, "tree-smoker-80", rpart(rfbing5 ~ smoker3 + age80, data=trainset, method="class"),testset)
-
-# Now let's create a tree regression model in which we add all variables
-models.results <- record_performance("tree", models.results, "tree-drnkwek+rfdrhv5", rpart(rfbing5 ~ drnkwek + rfdrhv5, data=trainset, method="class"),testset)
-
-# Now let's create a svm regression model in which we add all variables
-models.results <- record_performance("svm", models.results, "svm-all", svm(rfbing5 ~ . , data=trainset),testset)
-
-# Multinomial regression for heavy drinkers
-models.results <- record_performance("logit", models.results, "mnHeavy", multinom(rfbing5 ~ rfdrhv5, data=trainset),testset)
+svmmodels.results <- record_performance("svm", svmmodels.results, "svm all sig var", svm(rfbing5 ~ rfhype5 + asthms1 +  ageg + rfbmi5 + educag + smoker3 + rfsmok3 + frutsum + frtlt1 + veg23 + minac11 + pastrng + rfseat2 + rfseat3 + drocdy3 + ftjuda1 + padur1 + padur2 + foodstamp, data=trainset),testset)
+svmmodels.results <- record_performance("svm", svmmodels.results, "svm all", svm(rfbing5 ~ ., data=trainset),testset)
 
 
 
+### Now let's test Decision Tree Models
 
-
-tree.mfc_baseline <- sum(test$rfbing5 == 1) / nrow(test)
-tree.results <- data.frame(model=c("MFC"), score=c(tree.mfc_baseline))
-
-# Now let's add single variable logsitic regression models to the list. 
-tree.results <- record_performance("tree", tree.results, "body_score", rpart(rfbing5 ~ age80, data=train,method="class"),test)
-
-
-svm.mfc_baseline <- sum(testset$rfbing5 == 0) / nrow(testset)
-svm.results <- data.frame(model=c("MFC"), score=c(svm.mfc_baseline))
-
-# Now let's add single variable logsitic regression models to the list. 
-svm.results <- record_performance("svm", svm.results, "body_score", svm(rfbing5 ~ age80, data=trainset),testset)
-
-
-# EXPLORATORY ANALYSIS - RASHMI FIGURING OUT
-
-# LOGISTIC REGRESSION MODELS --  SEAN FIGURING OUT
-
-# DECISION TREES -- GRACE FIGURING OUT
-# Traditional Tree =====================================================#
-
-# make a tree model
+# Create a decision tree accounting for all variables
 treeAllModel <-  rpart(rfbing5 ~ . , data=trainset, method="class")
-
-# see how it do
+# Print out a summary
 summary(treeAllModel)
-# Important variables for treeAllModel: drnkwek + rfdrhv5 + age80+ ageg+ageg5yr+age65yr+hcvu651+chldcnt+chispnc 
+
+# Important variables for treeAllModel: drnkwek + mixedDrinks + rfdrhv5 + fc60 + maxvo2 + age80+ ageg+ageg5yr+age65yr 
+
+# Set baseline for tree model
+treemodels.mfc_baseline <- sum(trainset$rfbing5 == 0) / nrow(trainset)
+treemodels.results <- data.frame(model=c("MFC"), score=c(treemodels.mfc_baseline))
 
 # Now let's create a tree regression model in which we add all variables
-models.results <- record_performance("tree", models.results, "treeImpVar", rpart(rfbing5 ~ drnkwek + rfdrhv5 + age80+ ageg+ageg5yr+age65yr+hcvu651+chldcnt+chispnc, data=trainset, method="class"),testset)
+treemodels.results <- record_performance("tree", treemodels.results, "treeallVar", rpart(rfbing5 ~ ., data=trainset, method="class"),testset)
 
-# Try it without drinking variables- better than baseline, but not by much
-models.results <- record_performance("tree", models.results, "treeImpVar_noDrink", rpart(rfbing5 ~ age80+ ageg+ageg5yr+age65yr+hcvu651+chldcnt+chispnc, data=trainset, method="class"),testset)
+# Now let's create a tree regression model in which we add variables important in prior runs
+treemodels.results <- record_performance("tree", treemodels.results, "treeOldImpVar", rpart(rfbing5 ~ drnkwek + rfdrhv5 + age80+ ageg+ageg5yr+age65yr+hcvu651+chldcnt+chispnc, data=trainset, method="class"),testset)
+
+# Now let's create a tree regression model in which we add variables important in prior runs
+treemodels.results <- record_performance("tree", treemodels.results, "treeNewImpVar", rpart(rfbing5 ~ drnkwek + mixedDrinks + rfdrhv5 + fc60 + maxvo2 + age80+ ageg+ageg5yr+age65yr , data=trainset, method="class"),testset)
+
+# Try it without drinking variables using old variables better than baseline, but not by much
+treemodels.results <- record_performance("tree", treemodels.results, "treeOldImpVar_noDrink", rpart(rfbing5 ~ age80+ ageg+ageg5yr+age65yr+hcvu651+chldcnt+chispnc, data=trainset, method="class"),testset)
+
+# Now let's create a tree regression model in which we use new imp variables minus drinking variables
+treemodels.results <- record_performance("tree", treemodels.results, "treeNewImpVar_noDrink", rpart(rfbing5 ~ fc60 + maxvo2 + age80+ ageg+ageg5yr+age65yr , data=trainset, method="class"),testset)
 
 # plot tree with best fit
 fit <- rpart(rfbing5 ~ drnkwek + rfdrhv5 + age80 + ageg+ageg5yr+age65yr+hcvu651+chldcnt+chispnc, method="class", data=trainset)
@@ -279,50 +250,71 @@ post(fit, file = "tree.ps",
      title = "Tree for rfbing5")
 
 
-# Conditional Inference Tree ===========================================#
+# Conditional Inference Tree (Doesn't add anything, so leave out of ensemble#
 library(partykit)
 fit2 <- ctree(rfbing5 ~ drnkwek + rfdrhv5 + age80 + chldcnt ,  data=trainset)
 plot(fit2, main="rfbing5")
 plot(fit2, uniform=TRUE, main="Classification Tree for conditional rfbing5")
-models.results <- record_performance("ctree", models.results, "c", ctree(rfbing5 ~ drnkwek + rfdrhv5 + age80 + ageg5yr + chldcnt,  data=trainset),testset)
+treemodels.results <- record_performance("ctree", treemodels.results, "c", ctree(rfbing5 ~ drnkwek + rfdrhv5 + age80 + ageg5yr + chldcnt,  data=trainset),testset)
 
 # create attractive postscript plot of tree 
 post(fit2, file = "tree.ps", 
      title = "conditional Tree for rfbing5")
 
-# Random Forest ========================================================#
+# Let's run several Random Forests ==================#
+# Load randomForest library
 library(randomForest)
-library(partykit)
 
 trainset$rfbing5 <- as.character(trainset$rfbing5)
 trainset$rfbing5 <- as.factor(trainset$rfbing5)
+
 fit3 <- randomForest(rfbing5 ~ drnkwek + rfdrhv5 + age80+ ageg+ageg5yr+age65yr+hcvu651+chldcnt+chispnc,   data=trainset)
 print(fit3) # view results 
 importance(fit3) # importance of each predictor
-models.results <- record_performance("tree", models.results, "forest", randomForest(rfbing5 ~ drnkwek + rfdrhv5 + age80+ ageg+ageg5yr+age65yr+hcvu651+chldcnt+chispnc, model='class',  data=trainset),testset)
+
+treemodels.results <- record_performance("tree", treemodels.results, "forest_oldvar", randomForest(rfbing5 ~ drnkwek + rfdrhv5 + age80+ ageg+ageg5yr+age65yr+hcvu651+chldcnt+chispnc, model='class',  data=trainset),testset)
+
+
+treemodels.results <- record_performance("tree", treemodels.results, "forest_oldvar", randomForest(rfbing5 ~ drnkwek + rfdrhv5 + age80+ ageg+ageg5yr+age65yr+hcvu651+chldcnt+chispnc, model='class',  data=trainset),testset)
+
+treemodels.results <- record_performance("tree", treemodels.results, "forest_old_nodrink", randomForest(rfbing5 ~ age80+ ageg+ageg5yr+age65yr+hcvu651+chldcnt+chispnc, model='class',  data=trainset),testset)
+
+treemodels.results <- record_performance("tree", treemodels.results, "forest_newvar", randomForest(rfbing5 ~ drnkwek + mixedDrinks + rfdrhv5 + fc60 + maxvo2 + age80+ ageg+ageg5yr+age65yr, model='class',  data=trainset),testset)
+
+
 
 #=========================================================================================================|
-# MOTHAFUCKIN ENSEMBLE TIIIIIIME
+# Make and ensemble model out of best random forest and best logistic regression
 #=========================================================================================================|
-
-#ensemble <- data.frame("rfbing5" = testset$rfbing5) 
-#ensemble$treeGuess<-predict(fit, testset)
-#ensemble$ctreeGuess<-predict(fit2,testset)
-
-  
-# Create model values: make all these before adding columns, so things don't get all fucked up
+# Redefine our best logistic regression model as logit
 logit<-multinom(rfbing5 ~ . , data=trainset)
-  
 
-#Add variable columnns to dataframes for later calculations
-    trainset$logitGuess<-predict(logit, trainset)
-      testset$logitGuess<-predict(logit, testset)
+# Redefine our desicion tree best model as "fit"
 
-#Add trees    
-    trainset$treeGuess<-predict(fit, trainset)
-      testset$treeGuess<-predict(fit, testset)
-    trainset$ctreeGuess<-predict(fit2,trainset)
-      testset$ctreeGuess<-predict(fit2,testset)
+# Now let's create a tree regression model in which we add variables important in prior runs
 
-models.results <- record_performance("logit", models.results, "ensemble", multinom(rfbing5 ~ treeGuess+ctreeGuess+logitGuess , data=trainset, type="class"),testset)
+fit <-rpart(rfbing5 ~ drnkwek + rfdrhv5 + age80+ ageg+ageg5yr+age65yr+hcvu651+chldcnt+chispnc, data=trainset, method="class")
+
+
+# Redefine our random forest best model as "fit2"
+fit2<- randomForest(rfbing5 ~ drnkwek + rfdrhv5 + age80+ ageg+ageg5yr+age65yr+hcvu651+chldcnt+chispnc, model='class',  data=trainset)
+
+
+
+#Add variable columnns to dataframes for later calculations, with predictions from our best logistic regression model
+trainset$logitGuess<-predict(logit, trainset)
+testset$logitGuess<-predict(logit, testset)
+      
+#Add variable columnns to dataframes for later calculations, with predictions from our best decision tree model
+trainset$treeGuess<-predict(fit, trainset)
+testset$treeGuess<-predict(fit, testset)
+
+#Add variable columnns to dataframes for later calculations, with predictions from our best decision random forest model
+trainset$forestGuess<-predict(fit2,trainset)
+testset$forestGuess<-predict(fit2,testset)
+
+# Run the ensemble model
+newmodels.results <- record_performance("logit", newmodels.results, "ensemble", multinom(rfbing5 ~ treeGuess+forestGuess+logitGuess , data=trainset, type="class"),testset)
+
+newmodels.results <- record_performance("logit", newmodels.results, "ensemble", multinom(rfbing5 ~ treeGuess+forestGuess , data=trainset, type="class"),testset)
 
