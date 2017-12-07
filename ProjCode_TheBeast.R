@@ -63,7 +63,7 @@ View(Y2015)
 
 # Create a subset of the data that only contains data that only contains computed variables by finding columns with underscores at the start https://www.cdc.gov/brfss/annual_data/2015/pdf/codebook15_llcp.pdf
 data <- Y2015 %>%
-  select(starts_with("_"))
+  select(starts_with("_"), ends_with("_"))
 
 # Then rename the columns to get rid of the stupid underscores that are screwing stuff up and make them lowercase.
 names(data) <- names(data) %>%
@@ -122,6 +122,34 @@ record_performance <- function( model_type, df, name, model, test) {
   df <- rbind(df, data.frame(model=c(name), score=c(classAgreement(table)$diag)))
   return(df)
 }
+
+# First let's check for statistically signficant variables, and only consider those variables in our model by printing out a coefficient table
+test_glm<-glm(rfbing5 ~ ., data=trainset)
+print(summary(test_glm))
+
+# This is a GLM with lowest AIC I can get
+test_glm <-glm(rfbing5 ~ ageg + educag + smoker3 + rfsmok3 + drnkwek + rfdrhv5 + vegesum + frtlt1 + rfseat3 + drocdy3 + frutda1 +padur1, data=trainset)
+print(summary(test_glm))
+
+# These are interesting variables rfhype5, raceg21,age80, ageg, rfbmi5,smoker3,rfsmok3,drnkwek,rfdrhv5,vegesum, frtlt1, veglt1,rfseat3 ageg + educag + smoker3 + rfsmok3 + drnkwek + rfdrhv5 + vegesum + frtlt1 + rfseat3 + drocdy3 + frutda1 +padur1
+
+# Now let's create a logistic regression model in which we add all variables except for other drinking
+models.results <- record_performance("logit", models.results, "all", multinom(rfbing5 ~ ., data=trainset),testset)
+
+# Now let's create a logistic regression model in which we add all variables except for other drinking
+models.results <- record_performance("logit", models.results, "all no drnkwek", multinom(rfbing5 ~ . -drnkwek, data=trainset),testset)
+
+# Now let's create a logistic regression model in which we add all variables except for other drinking
+models.results <- record_performance("logit", models.results, "all no rfdrhv5", multinom(rfbing5 ~ . -rfdrhv5, data=trainset),testset)
+
+# Now let's create a logistic regression model in which we add all variables except for other drinking
+models.results <- record_performance("logit", models.results, "all no drnkwek or rfdrhv5", multinom(rfbing5 ~ . -drnkwek -rfdrhv5 , data=trainset),testset)
+
+# Here are all the variables Alex identifeid as significant
+models.results <- record_performance("logit", models.results, "all alex sig", multinom(rfbing5 ~ hcvu651+raceg21+age80+rfbmi5+smoker3+rfsmok3+drnkwek+rfdrhv5+frtlt1+pa300r2+lmtact1+rfseat3, data=trainset),testset)
+
+# Here are all the variables Sean identified as signficant
+models.results <- record_performance("logit", models.results, "all my sig", multinom(rfbing5 ~ rfbing5 ~ ageg + educag + smoker3 + rfsmok3 + drnkwek + rfdrhv5 + vegesum + frtlt1 + rfseat3 + drocdy3 + frutda1 + padur1, data=trainset),testset)
 
 # Get the most frequent baseline, which divides number of false answers by number of total observations to use as a base measurement. This is how well humans did on guessing answers to questions. We need to do better than this with our predictive model. So any model we build needs to do a better job than the humans at getting the right answer.
 models.mfc_baseline <- sum(trainset$rfbing5 == 0) / nrow(trainset)

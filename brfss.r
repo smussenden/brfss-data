@@ -109,6 +109,10 @@ record_performance <- function( model_type, df, name, model, test) {
   return(df)
 }
 
+#Write it out
+write.csv(trainset, file="train.csv")
+write.csv(testset, file="test.csv")
+
 # Get the most frequent baseline, which divides number of false answers by number of total observations to use as a base measurement. This is how well humans did on guessing answers to questions. We need to do better than this with our predictive model. So any model we build needs to do a better job than the humans at getting the right answer.
 models.mfc_baseline <- sum(trainset$rfbing5 == 0) / nrow(trainset)
 models.results <- data.frame(model=c("MFC"), score=c(models.mfc_baseline))
@@ -117,7 +121,15 @@ models.results <- data.frame(model=c("MFC"), score=c(models.mfc_baseline))
 test_glm<-glm(rfbing5 ~ ., data=trainset)
 print(summary(test_glm))
 
+# This is a GLM with lowest AIC I can get
+test_glm <-glm(rfbing5 ~ ageg + educag + smoker3 + rfsmok3 + drnkwek + rfdrhv5 + vegesum + frtlt1 + rfseat3 + drocdy3 + frutda1 +padur1, data=trainset)
+print(summary(test_glm))
+
+
+
 # These are statistically - rfhype5, raceg21,age80, ageg, rfbmi5,smoker3,rfsmok3,drnkwek,rfdrhv5,vegesum, frtlt1, veglt1,rfseat3
+
+# ageg + educag + smoker3 + rfsmok3 + drnkwek + rfdrhv5 + vegesum + frtlt1 + rfseat3 + drocdy3 + frutda1 +padur1
 
 # Now let's create a logistic regression model in which we add all variables except for other drinking
 models.results <- record_performance("logit", models.results, "all", multinom(rfbing5 ~ ., data=trainset),testset)
