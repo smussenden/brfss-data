@@ -57,12 +57,12 @@ library(rpart.plot)
 
 # This is for testing the accuracy of our logistic regression
 library(pscl)
-# Read in the 2015 data
+
+# Read in the 2015 BRFSS data
 Y2015 <- read_csv("data/2015.csv", col_names= TRUE)
 View(Y2015)
 
-
-# Create a subset of the data that only contains data that only contains computed variables by finding columns with underscores at the start https://www.cdc.gov/brfss/annual_data/2015/pdf/codebook15_llcp.pdf
+# Create a subset of the data that only contains data that only contains computed variables by finding columns with underscores at the start https://www.cdc.gov/brfss/annual_data/2015/pdf/codebook15_llcp.pdf. NOTE: Updated this to include calculated variables that end with underscores, too. 
 data <- Y2015 %>%
   select(starts_with("_"), ends_with("_"))
 
@@ -75,14 +75,16 @@ View(data)
 # Read in FIPS Code data set to match state codes with state names
 fips<-read_csv("data/fipscodes.csv", col_types = cols(STATE_FIPS = col_double()))
 
-# Read in 2015 ACS survey data 
+# Read in 2015 ACS survey data which has selected economic characteristics as percentages like health coverage, unemployment, poverty, food stamps, people making less than 10K, people making more than 200K
 census <- read_csv("data/census.csv")
 
-# Join fips code with master data, then join census 
+# Join fips code with master BRFSS data, to get state names, then join to the census data 
 data <- left_join(data, fips, by = c("state" = "STATE_FIPS"))  
 data <- left_join(data, census, by = c("STATE_NAME" = "state_name"))  
 
-
+data <- data %>%
+  select(-c(STUSAB,STATE_NAME,STATENS,state.y))
+    
 # First, filter only rows that contain binge drinking 1 (no), 2 (yes) (removing the 9 and other values). Then remove five columns that have lots of NA values to get a workable dataset. And then omit any rows with NA values.
 binge <- data %>%
   filter(rfbing5 == c(1,2)) %>%
@@ -98,6 +100,35 @@ binge$rfbing5[binge$rfbing5 == 5] <- 0
 na_count <-sapply(binge, function(y) sum(length(which(is.na(y)))))
 na_count <- data.frame(na_count)
 View(na_count)
+
+# Let's do some feature engineering on the handful of variables that are non categorical in our data set.
+
+#frutsum- base 10
+binge$log10frutsum<-log10(binge$frutsum)
+
+#vegsum- base 10
+binge$log10frutsum<-log10(binge$vegesum)
+
+#frutsum- base 2
+binge$log2frutsum<-log2(binge$frutsum)
+
+#vegsum- base 2
+binge$log2frutsum<-log2(binge$vegesum)
+
+#do you even food pyramid bro
+binge$highVeg<- (binge$log2frutsum * binge$log2frutsum)
+
+# Take the log to normalize all of our census variables
+binge$log2unemployment <- log2(binge$unemployment)
+binge$log2less_10K <- log2(binge$less_10K)
+binge$log2more_200k <- log2(binge$more_200k)
+binge$log2foodstamp <- log2(binge$foodstamp)
+binge$log2healthinsurance <- log2(binge$healthinsurance)
+binge$log2poverty <- log2(binge$poverty)
+
+# Create an inequality index by dividing more than 200K percentage by less than 10K percentage,with higher number meaning more unequal. 
+binge <- binge %>%
+  mutate(inequality = more_200k/less_10K)
 
 # Now let's split our "full" data set into a training slice and a testing slice (I know, even though we have a separate test set). 1/5 in testset and 4/5 in trainset.
 
@@ -140,25 +171,33 @@ test_glm<-glm(rfbing5 ~ ., data=trainset)
 print(summary(test_glm))
 
 # This is a GLM with lowest AIC I can get
-test_glm <-glm(rfbing5 ~ ageg + educag + smoker3 + rfsmok3 + drnkwek + rfdrhv5 + vegesum + frtlt1 + rfseat3 + drocdy3 + frutda1 +padur1, data=trainset)
+test_glm <-glm(rfbing5 ~ rfhype5 + asthms1 +  ageg + rfbmi5 + educag + smoker3 + rfsmok3 + drnkwek + rfdrhv5 + frutsum + frtlt1 + veg23 + minac11 + pastrng + rfseat2 + rfseat3 + drocdy3 + ftjuda1 + padur1 + padur2 + foodstamp, data=trainset)
 print(summary(test_glm))
+
 
 # These are interesting variables rfhype5, raceg21,age80, ageg, rfbmi5,smoker3,rfsmok3,drnkwek,rfdrhv5,vegesum, frtlt1, veglt1,rfseat3 ageg + educag + smoker3 + rfsmok3 + drnkwek + rfdrhv5 + vegesum + frtlt1 + rfseat3 + drocdy3 + frutda1 +padur1
 
-# Now let's create a logistic regression model in which we add all variables except for other drinking
+# Get the most frequent baseline, tells us how many people are not binge drinkers. Any model we build needs to do better than this baseline.
+models.mfc_baseline <- sum(trainset$rfbing5 == 0) / nrow(trainset)
+models.results <- data.frame(model=c("MFC"), score=c(models.mfc_baseline))
+
+# Now let's create a logistic regression model in which we add all variables 
 models.results <- record_performance("logit", models.results, "all", multinom(rfbing5 ~ ., data=trainset),testset)
 
-# Now let's create a logistic regression model in which we add all variables except for other drinking
+# Now let's create a logistic regression model in which we add all variables except for drnkwek
 models.results <- record_performance("logit", models.results, "all no drnkwek", multinom(rfbing5 ~ . -drnkwek, data=trainset),testset)
 
-# Now let's create a logistic regression model in which we add all variables except for other drinking
+# Now let's create a logistic regression model in which we add all variables except for rfdrhv5
 models.results <- record_performance("logit", models.results, "all no rfdrhv5", multinom(rfbing5 ~ . -rfdrhv5, data=trainset),testset)
 
-# Now let's create a logistic regression model in which we add all variables except for other drinking
+# Now let's create a logistic regression model in which we add all variables except for no drnkwek or rfdrhv5
 models.results <- record_performance("logit", models.results, "all no drnkwek or rfdrhv5", multinom(rfbing5 ~ . -drnkwek -rfdrhv5 , data=trainset),testset)
 
-# Here are all the variables Alex identifeid as significant
-models.results <- record_performance("logit", models.results, "all alex sig", multinom(rfbing5 ~ hcvu651+raceg21+age80+rfbmi5+smoker3+rfsmok3+drnkwek+rfdrhv5+frtlt1+pa300r2+lmtact1+rfseat3, data=trainset),testset)
+# Here is all of our significant variables in our earlier glm
+models.results <- record_performance("logit", models.results, "all sig variables", multinom(rfbing5 ~ rfhype5 + asthms1 +  ageg + rfbmi5 + educag + smoker3 + rfsmok3 + drnkwek + rfdrhv5 + frutsum + frtlt1 + veg23 + minac11 + pastrng + rfseat2 + rfseat3 + drocdy3 + ftjuda1 + padur1 + padur2 + foodstamp, data=trainset),testset)
+
+# Here is all of our significant variables in earlier glm except drnkwek and rfdrhv5
+models.results <- record_performance("logit", models.results, "all sig variables except drinking", multinom(rfbing5 ~ rfhype5 + asthms1 +  ageg + rfbmi5 + educag + smoker3 + rfsmok3 + frutsum + frtlt1 + veg23 + minac11 + pastrng + rfseat2 + rfseat3 + drocdy3 + ftjuda1 + padur1 + padur2 + foodstamp, data=trainset),testset)
 
 # Here are all the variables Sean identified as signficant
 models.results <- record_performance("logit", models.results, "all my sig", multinom(rfbing5 ~ rfbing5 ~ ageg + educag + smoker3 + rfsmok3 + drnkwek + rfdrhv5 + vegesum + frtlt1 + rfseat3 + drocdy3 + frutda1 + padur1, data=trainset),testset)
