@@ -61,6 +61,7 @@ library(pscl)
 Y2015 <- read_csv("data/2015.csv", col_names= TRUE)
 View(Y2015)
 
+
 # Create a subset of the data that only contains data that only contains computed variables by finding columns with underscores at the start https://www.cdc.gov/brfss/annual_data/2015/pdf/codebook15_llcp.pdf
 data <- Y2015 %>%
   select(starts_with("_"), ends_with("_"))
@@ -70,6 +71,17 @@ names(data) <- names(data) %>%
   tolower() %>%
   str_replace_all("_", "")
 View(data)
+
+# Read in FIPS Code data set to match state codes with state names
+fips<-read_csv("data/fipscodes.csv", col_types = cols(STATE_FIPS = col_double()))
+
+# Read in 2015 ACS survey data 
+census <- read_csv("data/census.csv")
+
+# Join fips code with master data, then join census 
+data <- left_join(data, fips, by = c("state" = "STATE_FIPS"))  
+data <- left_join(data, census, by = c("STATE_NAME" = "state_name"))  
+
 
 # First, filter only rows that contain binge drinking 1 (no), 2 (yes) (removing the 9 and other values). Then remove five columns that have lots of NA values to get a workable dataset. And then omit any rows with NA values.
 binge <- data %>%
